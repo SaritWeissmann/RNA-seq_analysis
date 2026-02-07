@@ -24,7 +24,7 @@ GENOME_FASTA="<species.softmasked.fa>"
 GENE_ANNOTATION="<species.refGenxyz.gene_exons.gff3>"
 
 THREADS=8
-RAM_LIMIT_GB=64                             
+RAM_LIMIT_GB=58                             
 
 # STAR indexing 
 SJDB_OVERHANG=99                            
@@ -60,6 +60,9 @@ echo "Checking STAR genome index ..."
 
 if [[ ! -f "${GENOME_INDEX_DIR}/SA" ]]; then
     echo "Building STAR genome index with GTF ..."
+
+    rm -rf "${GENOME_INDEX_DIR}/_tmp"
+
     # Use 1024 for binary GiB calculation
     LIMIT_RAM_BYTES=$((RAM_LIMIT_GB * 1024 * 1024 * 1024))
 
@@ -128,14 +131,16 @@ while IFS= read -r s3_key; do
         --genomeDir "${GENOME_INDEX_DIR}" \
         --readFilesIn "${local_fastq}" \
         --outFileNamePrefix "${outdir}/" \
-        --quantMode TranscriptomeSAM GeneCounts \
-        --quantTranscriptomeSAMoutput BanSingleEnd_ExtendSoftclip \
-        --outSAMtype BAM SortedByCoordinate \
-        --outSAMattributes NH HI AS nM NM MD \
-        --outSAMstrandField intronMotif \
         --sjdbGTFfile "${GENE_ANNOTATION}" \
-        --limitBAMsortRAM "${LIMIT_RAM_BYTES}"
+        --quantMode TranscriptomeSAM GeneCounts \
+        --outSAMtype BAM SortedByCoordinate \
+        --alignEndsType EndToEnd \
+        --alignIntronMax 1 \
+        --alignMatesGapMax 0 \
+        --outSAMattributes NH HI AS nM NM MD
 
+    # Index ONLY the Coordinate-Sorted Genome BAM
+    # The Transcriptome BAM is unsorted (required for RSEM) and cannot be indexed.
     genome_bam="${outdir}/Aligned.sortedByCoord.out.bam"
     if [[ -f "${genome_bam}" ]]; then
         echo "Indexing genome BAM..."
